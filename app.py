@@ -45,6 +45,7 @@ class Venue(db.Model):
     website_link = db.Column(db.String(120),nullable=True)
     talent=db.Column(db.Boolean,nullable=True)
     description = db.Column(db.String(500),nullable=True)
+    show = db.relationship('Show',backref='venue',lazy=True)
 
     # def save_venue(self):
     #   db.session.add(self)
@@ -59,10 +60,24 @@ class Artist(db.Model):
     name = db.Column(db.String)
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
+    phone = db.Column(db.String(120),nullable=True)
     genres = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
+    image = db.Column(db.String(500))
+    facebook = db.Column(db.String(120),nullable=True)
+    website = db.Column(db.String,nullable=True)
+    venue = db.Column(db.Boolean,nullable=True)
+    description = db.Column(db.String,nullable=True)
+    shows = db.relationship('Show',backref='artist',lazy=True)
+
+class Show(db.Model):
+  __tablename__ = 'show'
+
+  id = db.Column(db.Integer,primary_key=True)
+  date = db.Column(db.DateTime,nullable=False)
+  venue_id = db.Column(db.Integer,db.ForeignKey('venue.id'),nullable=False)
+  artist_id = db.Column(db.Integer,db.ForeignKey('artist.id'),nullable=False)
+
+
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
@@ -98,8 +113,22 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  data = Venue.query.all()
-  return render_template('pages/venues.html', areas=data)
+  venues = Venue.query.all()
+
+  # data=[{
+  #     "city": venue.city,
+  #     "state": "CA",
+  #     "venues": [{
+  #       "id": 1,
+  #       "name": "The Musical Hop",
+  #       "num_upcoming_shows": 0,
+  #     }, {
+  #       "id": 3,
+  #       "name": "Park Square Live Music & Coffee",
+  #       "num_upcoming_shows": 1,
+  #     }]
+  #   }]  
+  return render_template('pages/venues.html', areas=venues)
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
@@ -161,7 +190,6 @@ def create_venue_submission():
     db.session.commit()
     # on successful db insert, flash success
     flash('Venue ' + venue_data.name + ' was successfully listed!')
-
   except:
     db.session.rollback()
     print(sys.exc_info())
@@ -190,16 +218,7 @@ def delete_venue(venue_id):
 @app.route('/artists')
 def artists():
   # TODO: replace with real data returned from querying the database
-  data=[{
-    "id": 4,
-    "name": "Guns N Petals",
-  }, {
-    "id": 5,
-    "name": "Matt Quevedo",
-  }, {
-    "id": 6,
-    "name": "The Wild Sax Band",
-  }]
+  data = Artist.query.all()
   return render_template('pages/artists.html', artists=data)
 
 @app.route('/artists/search', methods=['POST'])
@@ -362,12 +381,38 @@ def create_artist_submission():
   # called upon submitting the new artist listing form
   # TODO: insert form data as a new Venue record in the db, instead
   # TODO: modify data to be the data object returned from db insertion
-
+  error = False
+  try:
+    name = request.form['name']
+    city = request.form['city']
+    state = request.form['state']
+    phone = request.form['phone']
+    image = request.form['image_link']
+    genres = request.form['genres']
+    facebook = request.form['facebook_link']
+    website = request.form['website_link']
+    venue = request.form['seeking_venue']
+    description = request.form['seeking_description']
+    if venue == 'y':
+      venue = True
+    else:
+      venue = False
+    artist_data = Artist(name=name,city=city,state=state,phone=phone,genres=genres,image=image,facebook=facebook,website=website,description=description,venue=venue)
+    print(artist_data)
+    db.session.add(artist_data)
+    db.session.commit()
+    flash('Artist ' + artist_data.name + ' was successfully listed!')
+  except:
+    db.session.rollback()
+    print(sys.exc_info())
+  finally:
+    db.session.close()
+  if error:
+    flash('An error occurred. Artist ' + artist_data.name + ' could not be listed.')
+  else:
   # on successful db insert, flash success
-  flash('Artist ' + request.form['name'] + ' was successfully listed!')
   # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
-  return render_template('pages/home.html')
+    return render_template('pages/home.html')
 
 
 #  Shows
@@ -458,7 +503,8 @@ if not app.debug:
 
 # Default port:
 if __name__ == '__main__':
-    app.run()
+  app.debug = True
+  app.run()
 
 # Or specify port manually:
 '''
