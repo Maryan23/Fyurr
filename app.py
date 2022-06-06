@@ -160,11 +160,7 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST','GET'])
 def create_venue_submission():
-  # TODO: insert form data as a new Venue record in the db, instead
-
-  # TODO: modify data to be the data object returned from db insertion
   error= False
-
   try:
     name = request.form['name']
     city= request.form['city']
@@ -197,24 +193,32 @@ def create_venue_submission():
   else:
     return render_template('pages/home.html')
 
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
-  # TODO: Complete this endpoint for taking a venue_id, and using
-  # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
+  error = False
+  venue = Venue.query.get(venue_id)
 
-  # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
-  # clicking that button delete it from the db then redirect the user to the homepage
+  if venue is None:
+    abort(400)
+  try:
+    db.session.delete(venue)
+    db.session.commit()
+    flash('Venue deleted successfully!')
+  except:
+    error = True
+    db.session.rollback()
+    print(sys.exc_info())
+    flash('Error occurred: Venue could not be deleted.')
+  finally:
+    db.session.close()
+
   return None
 
 #  Artists
 #  ----------------------------------------------------------------
 @app.route('/artists')
 def artists():
-  # TODO: replace with real data returned from querying the database
   data = Artist.query.all()
   return render_template('pages/artists.html', artists=data)
 
