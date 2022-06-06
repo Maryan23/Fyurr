@@ -104,44 +104,50 @@ def index():
 @app.route('/venues')
 def venues():
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  venues = Venue.query.all()
-
-  # data=[{
-  #     "city": venue.city,
-  #     "state": "CA",
-  #     "venues": [{
-  #       "id": 1,
-  #       "name": "The Musical Hop",
-  #       "num_upcoming_shows": 0,
-  #     }, {
-  #       "id": 3,
-  #       "name": "Park Square Live Music & Coffee",
-  #       "num_upcoming_shows": 1,
-  #     }]
-  #   }]  
+  venues = []
+  cities = db.session.query(Venue.city,Venue.state)
+  for city in cities:
+    venue = db.session.query(Venue).filter_by(city=city.city,state=city.state)
+    print(venue)
+    for venue in venue:
+      # upcoming_shows_count = db.session.query(Show).filter_by(venue_id=venue.id).count()
+      venues.append({
+        'city':city.city,
+        'state':city.state,
+        "venues":[{
+          'id':venue.id,
+          'name':venue.name,
+          'num_upcoming_shows':db.session.query(Show).filter_by(venue_id=venue.id).count()
+        }]
+      })    
   return render_template('pages/venues.html', areas=venues)
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for Hop should return "The Musical Hop".
-  # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
-  response={
-    "count": 1,
-    "data": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }
+  venue = db.session.query(Venue).filter(Venue.name.ilike('%' + request.form.get('search_term') + '%')).all()
+  response = {
+        "count": len(venue),
+        "data": venue
+    }
   return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
-  # shows the venue page with the given venue_id
-  # TODO: replace with real venue data from the venues table, using venue_id
   
-  data = Venue.query.get(venue_id)
+  venue = Artist.query.get(venue_id)
+  now = datetime.now()
+  data = venue.__dict__
+  shows = db.session.query(Show).filter_by(venue_id=venue_id)
+  past_shows = shows.filter(Show.start_time < now).all()
+  upcoming_shows =  shows.filter(Show.start_time >= now).all()
+  upcoming_shows_count = len(upcoming_shows)
+  past_shows_count = len(past_shows)
+  # print(past_shows)
+  data['past_shows'] = past_shows
+  data['upcoming_shows'] = upcoming_shows
+  data['upcoming_shows_count']= upcoming_shows_count
+  data['past_shows_count'] = past_shows_count  
+  
   return render_template('pages/show_venue.html', venue=data)
 
 #  Create Venue
