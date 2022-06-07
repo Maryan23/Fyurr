@@ -5,72 +5,15 @@
 import sys
 import dateutil.parser
 import babel
-from flask import Flask, jsonify, render_template, request, flash, redirect, url_for, abort
-from flask_moment import Moment
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask,render_template, request, flash, redirect, url_for, abort
 import logging
 from logging import Formatter, FileHandler
-
-from sqlalchemy import JSON
 from forms import *
-from flask_migrate import Migrate
+from models import *
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
-
-app = Flask(__name__)
-moment = Moment(app)
 app.config.from_object('config')
-db = SQLAlchemy(app)
-
-
-# TODO: connect to a local postgresql database
-migrate = Migrate(app,db)
-
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-
-class Venue(db.Model):
-    __tablename__ = 'venue'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120))
-    phone = db.Column(db.String(120),nullable=True)
-    genres = db.Column(db.String)
-    image_link = db.Column(db.String(500),nullable=True)
-    facebook_link = db.Column(db.String(120),nullable=True)
-    website_link = db.Column(db.String(120),nullable=True)
-    talent=db.Column(db.Boolean,nullable=True)
-    description = db.Column(db.String(500),nullable=True)
-    show = db.relationship('Show',backref='venue',lazy=True)
-
-class Artist(db.Model):
-    __tablename__ = 'artist'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120),nullable=True)
-    genres = db.Column(db.String(120))
-    image = db.Column(db.String(500))
-    facebook = db.Column(db.String(120),nullable=True)
-    website = db.Column(db.String,nullable=True)
-    venue = db.Column(db.Boolean,nullable=True)
-    description = db.Column(db.String,nullable=True)
-    shows = db.relationship('Show',backref='artist',lazy=True)
-
-class Show(db.Model):
-  __tablename__ = 'show'
-
-  id = db.Column(db.Integer,primary_key=True)
-  start_time = db.Column(db.DateTime,nullable=False)
-  venue_id = db.Column(db.Integer,db.ForeignKey('venue.id'),nullable=False)
-  artist_id = db.Column(db.Integer,db.ForeignKey('artist.id'),nullable=False)
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -110,14 +53,14 @@ def venues():
     venue = db.session.query(Venue).filter_by(city=city.city,state=city.state)
     print(venue)
     for venue in venue:
-      # upcoming_shows_count = db.session.query(Show).filter_by(venue_id=venue.id).count()
+      upcoming_shows_count = db.session.query(Show).filter_by(venue_id=venue.id).count()
       venues.append({
         'city':city.city,
         'state':city.state,
         "venues":[{
           'id':venue.id,
           'name':venue.name,
-          'num_upcoming_shows':db.session.query(Show).filter_by(venue_id=venue.id).count()
+          'num_upcoming_shows':upcoming_shows_count
         }]
       })    
   return render_template('pages/venues.html', areas=venues)
@@ -204,7 +147,7 @@ def delete_venue(venue_id):
   try:
     db.session.delete(venue)
     db.session.commit()
-    flash('Venue deleted successfully!')
+    flash('Venue deleted!')
   except:
     error = True
     db.session.rollback()
@@ -224,17 +167,12 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-  # search for "band" should return "The Wild Sax Band".
-  response={
-    "count": 1,
-    "data": [{
-      "id": 4,
-      "name": "Guns N Petals",
-      "num_upcoming_shows": 0,
-    }]
-  }
+  artist = db.session.query(Artist).filter(Artist.name.ilike('%' + request.form.get('search_term') + '%')).all()
+  response = {
+      "count": len(artist),
+      "data": artist
+    }
+
   return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
 
 @app.route('/artists/<int:artist_id>')
@@ -260,27 +198,24 @@ def show_artist(artist_id):
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
-  form = ArtistForm()
-  artist={
-    "id": 4,
-    "name": "Guns N Petals",
-    "genres": ["Rock n Roll"],
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "326-123-5000",
-    "website": "https://www.gunsnpetalsband.com",
-    "facebook_link": "https://www.facebook.com/GunsNPetals",
-    "seeking_venue": True,
-    "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
-    "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80"
-  }
-  # TODO: populate form with fields from artist with ID <artist_id>
+  artist = Artist.query.get(artist_id)
+  form = ArtistForm(obj=artist)
+
   return render_template('forms/edit_artist.html', form=form, artist=artist)
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
-  # TODO: take values from the form submitted, and update existing
-  # artist record with ID <artist_id> using the new attributes
+  form = ArtistForm(request.form)
+  artist = Artist.query.get(artist_id)
+  try:
+    form.populate_obj(artist)
+    db.session.commit()
+    flash('Artist '+ request.form['name']+ ' was edited successfully!')
+  except:
+    db.session.rollback()
+    flash('Artist '+request.form['name']+' could not be listed')
+  finally:
+    db.session.close()
 
   return redirect(url_for('show_artist', artist_id=artist_id))
 
