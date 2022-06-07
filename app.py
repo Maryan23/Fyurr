@@ -1,20 +1,5 @@
-#----------------------------------------------------------------------------#
-# Imports
-#----------------------------------------------------------------------------#
-
-import sys
-import dateutil.parser
-import babel
-from flask import Flask,render_template, request, flash, redirect, url_for, abort
-import logging
-from logging import Formatter, FileHandler
-from forms import *
+from config import *
 from models import *
-#----------------------------------------------------------------------------#
-# App Config.
-#----------------------------------------------------------------------------#
-app.config.from_object('config')
-
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
@@ -333,9 +318,6 @@ def create_show_submission():
     flash('An error occurred. Show could not be listed.')
   finally:
     db.session.close()
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Show could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
   return render_template('pages/home.html')
 
 @app.errorhandler(404)
